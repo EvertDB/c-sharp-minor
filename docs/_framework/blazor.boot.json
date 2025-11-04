@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "CSharpCompilerWasm",
   "resources": {
-    "hash": "sha256-GFTbpie4Oh3Rz6nK84Evt5XDiJoURgkcKBs5qWkdbpA=",
+    "hash": "sha256-zFHJ7gJjfA8efN4tKtVNN6lqFBBTK/lw5oz8kE1iUq4=",
     "fingerprinting": {
       "Basic.Reference.Assemblies.Net90.ax3achsd86.wasm": "Basic.Reference.Assemblies.Net90.wasm",
       "Microsoft.AspNetCore.Components.lfpoh51nke.wasm": "Microsoft.AspNetCore.Components.wasm",
@@ -69,7 +69,7 @@
       "System.8rv0tdtrxz.wasm": "System.wasm",
       "netstandard.8k8p3d41pf.wasm": "netstandard.wasm",
       "System.Private.CoreLib.dnkr7g1b2t.wasm": "System.Private.CoreLib.wasm",
-      "CSharpCompilerWasm.cenhmv0so9.wasm": "CSharpCompilerWasm.wasm",
+      "CSharpCompilerWasm.poxv3et6ef.wasm": "CSharpCompilerWasm.wasm",
       "Microsoft.CodeAnalysis.resources.azbzwnm97j.wasm": "Microsoft.CodeAnalysis.resources.wasm",
       "Microsoft.CodeAnalysis.CSharp.resources.ncyjg21q77.wasm": "Microsoft.CodeAnalysis.CSharp.resources.wasm",
       "Microsoft.CodeAnalysis.resources.uxm2gznvff.wasm": "Microsoft.CodeAnalysis.resources.wasm",
@@ -187,7 +187,7 @@
       "System.Xml.XPath.XDocument.pr1ruvh96t.wasm": "sha256-S7SXBJVMM3qMvdlIaQz//V7PEatIdFiVjtSs9/j9wkQ=",
       "System.8rv0tdtrxz.wasm": "sha256-xMF0eauQ5DkSzUozHLFFMQnL6DSJO09nJLtgag+Dzbw=",
       "netstandard.8k8p3d41pf.wasm": "sha256-mK4IRFhoRd4UzPSHAvbBV5H05E65JwDu3T3pVe0ynNo=",
-      "CSharpCompilerWasm.cenhmv0so9.wasm": "sha256-TL1aHu48yxr6t3wl44fZ8taXv9pRbofnJweGkubfhpY="
+      "CSharpCompilerWasm.poxv3et6ef.wasm": "sha256-txhDhJYI3ELmoL/Akjs8RcclNDAbaFBOblhoBTG4rjw="
     },
     "satelliteResources": {
       "cs": {
