@@ -310,14 +310,36 @@ public class Program
     {
         try
         {
+            // Extract using statements from user code and put them at the top
+            var lines = code.Split('\n');
+            var usingStatements = new List<string>();
+            var userCodeLines = new List<string>();
+            
+            bool inUsings = true;
+            foreach (var line in lines)
+            {
+                var trimmedLine = line.Trim();
+                if (inUsings && trimmedLine.StartsWith("using "))
+                {
+                    usingStatements.Add(line);
+                }
+                else if (inUsings && (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("//")))
+                {
+                    // Allow empty lines and comments in the using section
+                    usingStatements.Add(line);
+                }
+                else
+                {
+                    inUsings = false;
+                    userCodeLines.Add(line);
+                }
+            }
+            
             // Inject a Console replacement class that captures output
             var consoleReplacementCode = @"
-using System;
-using System.Text;
-
 public static class Console
 {
-    private static StringBuilder _output = new StringBuilder();
+    private static System.Text.StringBuilder _output = new System.Text.StringBuilder();
     
     public static void WriteLine()
     {
@@ -366,8 +388,8 @@ public static class Console
 }
 ";
             
-            // Combine the console replacement with user code
-            var combinedCode = consoleReplacementCode + "\n" + code;
+            // Combine: using statements + console replacement + user code
+            var combinedCode = string.Join("\n", usingStatements) + "\n" + consoleReplacementCode + "\n" + string.Join("\n", userCodeLines);
             var syntaxTree = CSharpSyntaxTree.ParseText(combinedCode);
             
             // For WebAssembly, we need to manually build essential references
