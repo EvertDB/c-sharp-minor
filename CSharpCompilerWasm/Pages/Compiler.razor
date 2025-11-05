@@ -329,41 +329,41 @@ public class Program
 ";
     private bool isCompiling = false;
     private bool showFullCode = false;
-    private string displayCode = @"        Console.WriteLine(""Hello from C# WebAssembly!"");
-        Console.WriteLine(""This code runs real C# compilation and execution in your browser."");
-        Console.WriteLine();
-        
-        // Basic variables
-        string language = ""C#"";
-        int year = 2025;
-        bool isAwesome = true;
-        char grade = 'A';
-        
-        Console.WriteLine($""Language: {language}"");
-        Console.WriteLine($""Year: {year}"");
-        Console.WriteLine($""Is awesome: {isAwesome}"");
-        Console.WriteLine($""Grade: {grade}"");
-        Console.WriteLine();
-        
-        // Character and string examples
-        Console.Write('H');
-        Console.Write('e');
-        Console.Write('l');
-        Console.Write('l');
-        Console.Write('o');
-        Console.Write(' ');
-        Console.WriteLine(""World!"");
-        Console.WriteLine();
-        
-        // Simple loop
-        Console.WriteLine(""Counting to 5:"");
-        for (int i = 1; i <= 5; i++)
-        {
-            Console.WriteLine($""Count: {i}"");
-        }
-        
-        Console.WriteLine();
-        Console.WriteLine(""C# compilation successful!"");";
+    private string displayCode = @"Console.WriteLine(""Hello from C# WebAssembly!"");
+Console.WriteLine(""This code runs real C# compilation and execution in your browser."");
+Console.WriteLine();
+
+// Basic variables
+string language = ""C#"";
+int year = 2025;
+bool isAwesome = true;
+char grade = 'A';
+
+Console.WriteLine($""Language: {language}"");
+Console.WriteLine($""Year: {year}"");
+Console.WriteLine($""Is awesome: {isAwesome}"");
+Console.WriteLine($""Grade: {grade}"");
+Console.WriteLine();
+
+// Character and string examples
+Console.Write('H');
+Console.Write('e');
+Console.Write('l');
+Console.Write('l');
+Console.Write('o');
+Console.Write(' ');
+Console.WriteLine(""World!"");
+Console.WriteLine();
+
+// Simple loop
+Console.WriteLine(""Counting to 5:"");
+for (int i = 1; i <= 5; i++)
+{
+    Console.WriteLine($""Count: {i}"");
+}
+
+Console.WriteLine();
+Console.WriteLine(""C# compilation successful!"");";
 
     private async Task CompileAndRun()
     {
@@ -438,17 +438,29 @@ public class Program
         else
         {
             // When in simple mode, update only the main method content
-            // Reconstruct the full code with the new main method content
+            // Add proper indentation to each line for the Main method
+            var indentedCode = IndentCode(newCode, "        "); // 8 spaces for Main method content
             sourceCode = @"using System;
 
 public class Program
 {
     public static void Main()
     {
-" + newCode + @"
+" + indentedCode + @"
     }
 }";
         }
+    }
+
+    private string IndentCode(string code, string indentation)
+    {
+        if (string.IsNullOrEmpty(code))
+            return code;
+            
+        var lines = code.Split('\n');
+        var indentedLines = lines.Select(line => 
+            string.IsNullOrWhiteSpace(line) ? line : indentation + line);
+        return string.Join("\n", indentedLines);
     }
 
     private string ExtractMainMethodContent(string fullCode)
@@ -474,7 +486,8 @@ public class Program
                 {
                     // Found the closing brace for Main method
                     var mainContent = fullCode.Substring(openBrace + 1, i - openBrace - 1);
-                    return mainContent.Trim();
+                    // Remove indentation for simplified view
+                    return RemoveIndentation(mainContent.Trim());
                 }
                 i++;
             }
@@ -487,10 +500,39 @@ public class Program
         }
     }
 
+    private string RemoveIndentation(string code)
+    {
+        if (string.IsNullOrEmpty(code))
+            return code;
+            
+        var lines = code.Split('\n');
+        var unindentedLines = lines.Select(line => 
+        {
+            // Remove up to 8 leading spaces (or fewer if the line has less)
+            if (line.Length >= 8 && line.Substring(0, 8) == "        ")
+                return line.Substring(8);
+            else if (line.StartsWith("    "))
+                return line.Substring(4); // Remove 4 spaces if that's what we have
+            else
+                return line.TrimStart(); // Just trim any leading whitespace
+        });
+        return string.Join("\n", unindentedLines);
+    }
+
     protected override void OnInitialized()
     {
         // Initialize the display code based on the toggle state
-        UpdateDisplayCode();
+        // On first load, the displayCode is already set to the unindented sample
+        // and sourceCode needs to be built from it
+        if (!showFullCode)
+        {
+            // Build the initial sourceCode from the unindented displayCode
+            OnCodeChanged(new ChangeEventArgs { Value = displayCode });
+        }
+        else
+        {
+            UpdateDisplayCode();
+        }
     }
 
     private void UpdateDisplayCode()
@@ -508,7 +550,13 @@ public class Program
 
     private void OnToggleChanged(ChangeEventArgs e)
     {
+        // First, ensure the current displayCode is saved to sourceCode
+        OnCodeChanged(new ChangeEventArgs { Value = displayCode });
+        
+        // Then toggle the view mode
         showFullCode = (bool)(e.Value ?? false);
+        
+        // Finally, update the display code for the new mode
         UpdateDisplayCode();
     }
 
