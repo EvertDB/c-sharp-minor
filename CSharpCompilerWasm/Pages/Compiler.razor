@@ -32,9 +32,16 @@
     <div class="editor-section">
         <div class="section-header">
             <span>📝 C# Code Editor</span>
+            <div class="toggle-container">
+                <label class="toggle-switch" title="Show all code">
+                    <input type="checkbox" @bind="showFullCode" @bind:event="onchange" @onchange="OnToggleChanged" />
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">{..}</span>
+                </label>
+            </div>
         </div>
         <div class="editor-container">
-            <textarea @bind="sourceCode" @bind:event="oninput" class="code-editor" 
+            <textarea @bind="displayCode" @bind:event="oninput" @onchange="OnCodeChanged" class="code-editor" 
                       placeholder="Write your C# code here..." spellcheck="false"></textarea>
         </div>
     </div>
@@ -125,6 +132,64 @@
         border-bottom: 1px solid #dee2e6;
         font-weight: 600;
         color: #495057;
+    }
+
+    .toggle-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background-color: #ccc;
+        border-radius: 24px;
+        transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        border-radius: 50%;
+        transition: 0.3s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+        background-color: #667eea;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+    }
+
+    .toggle-label {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 12px;
+        font-weight: bold;
+        color: #666;
     }
 
     .editor-container {
@@ -263,6 +328,42 @@ public class Program
 <span class='info'>Click 'Compile & Run' to execute your C# code!</span><br/>
 ";
     private bool isCompiling = false;
+    private bool showFullCode = false;
+    private string displayCode = @"        Console.WriteLine(""Hello from C# WebAssembly!"");
+        Console.WriteLine(""This code runs real C# compilation and execution in your browser."");
+        Console.WriteLine();
+        
+        // Basic variables
+        string language = ""C#"";
+        int year = 2025;
+        bool isAwesome = true;
+        char grade = 'A';
+        
+        Console.WriteLine($""Language: {language}"");
+        Console.WriteLine($""Year: {year}"");
+        Console.WriteLine($""Is awesome: {isAwesome}"");
+        Console.WriteLine($""Grade: {grade}"");
+        Console.WriteLine();
+        
+        // Character and string examples
+        Console.Write('H');
+        Console.Write('e');
+        Console.Write('l');
+        Console.Write('l');
+        Console.Write('o');
+        Console.Write(' ');
+        Console.WriteLine(""World!"");
+        Console.WriteLine();
+        
+        // Simple loop
+        Console.WriteLine(""Counting to 5:"");
+        for (int i = 1; i <= 5; i++)
+        {
+            Console.WriteLine($""Count: {i}"");
+        }
+        
+        Console.WriteLine();
+        Console.WriteLine(""C# compilation successful!"");";
 
     private async Task CompileAndRun()
     {
@@ -272,6 +373,13 @@ public class Program
 
         try
         {
+            // Ensure we have the current full source code
+            if (!showFullCode)
+            {
+                // If we're in simplified mode, update the source code from displayCode
+                OnCodeChanged(new ChangeEventArgs { Value = displayCode });
+            }
+            
             var result = await CompileCSharpCode(sourceCode);
             
             if (result.Success)
@@ -316,6 +424,92 @@ public class Program
     private void ClearOutput()
     {
         output = "";
+    }
+
+    private void OnCodeChanged(ChangeEventArgs e)
+    {
+        var newCode = e.Value?.ToString() ?? "";
+        
+        if (showFullCode)
+        {
+            // When in full code mode, update the full source code
+            sourceCode = newCode;
+        }
+        else
+        {
+            // When in simple mode, update only the main method content
+            // Reconstruct the full code with the new main method content
+            sourceCode = @"using System;
+
+public class Program
+{
+    public static void Main()
+    {
+" + newCode + @"
+    }
+}";
+        }
+    }
+
+    private string ExtractMainMethodContent(string fullCode)
+    {
+        try
+        {
+            // Simple extraction - find content between Main() { and the last }
+            var mainStart = fullCode.IndexOf("public static void Main()");
+            if (mainStart == -1) return fullCode; // If we can't find Main, return full code
+            
+            var openBrace = fullCode.IndexOf('{', mainStart);
+            if (openBrace == -1) return fullCode;
+            
+            // Find the matching closing brace for the Main method
+            int braceCount = 0;
+            int i = openBrace;
+            while (i < fullCode.Length)
+            {
+                if (fullCode[i] == '{') braceCount++;
+                else if (fullCode[i] == '}') braceCount--;
+                
+                if (braceCount == 0)
+                {
+                    // Found the closing brace for Main method
+                    var mainContent = fullCode.Substring(openBrace + 1, i - openBrace - 1);
+                    return mainContent.Trim();
+                }
+                i++;
+            }
+            
+            return fullCode; // Fallback
+        }
+        catch
+        {
+            return fullCode; // Fallback on any error
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        // Initialize the display code based on the toggle state
+        UpdateDisplayCode();
+    }
+
+    private void UpdateDisplayCode()
+    {
+        if (showFullCode)
+        {
+            displayCode = sourceCode;
+        }
+        else
+        {
+            displayCode = ExtractMainMethodContent(sourceCode);
+        }
+        StateHasChanged();
+    }
+
+    private void OnToggleChanged(ChangeEventArgs e)
+    {
+        showFullCode = (bool)(e.Value ?? false);
+        UpdateDisplayCode();
     }
 
     private Task<CompilationResult> CompileCSharpCode(string code)
