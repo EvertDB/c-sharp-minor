@@ -32,12 +32,17 @@
     <div class="editor-section">
         <div class="section-header">
             <span>📝 C# Code Editor</span>
-            <div class="toggle-container">
-                <label class="toggle-switch" title="Show all code">
-                    <input type="checkbox" checked="@showFullCode" @onchange="OnToggleChanged" />
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-label">{..}</span>
-                </label>
+            <div class="editor-controls">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="LoadSampleCode" title="Sample code">
+                    📄 Sample
+                </button>
+                <div class="toggle-container">
+                    <label class="toggle-switch" title="Show all code">
+                        <input type="checkbox" checked="@showFullCode" @onchange="OnToggleChanged" />
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">{..}</span>
+                    </label>
+                </div>
             </div>
         </div>
         <div class="editor-container">
@@ -150,6 +155,12 @@
     }
 
     .console-controls {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .editor-controls {
         display: flex;
         align-items: center;
         gap: 1rem;
@@ -295,6 +306,15 @@ public class Program
 {
     public static void Main()
     {
+    }
+}";
+
+    private string sampleCode = @"using System;
+
+public class Program
+{
+    public static void Main()
+    {
         Console.WriteLine(""Hello from C# WebAssembly!"");
         Console.WriteLine(""This code runs real C# compilation and execution in your browser."");
         Console.WriteLine();
@@ -355,41 +375,7 @@ public class Program
     private bool isCompiling = false;
     private bool showFullCode = false;
     private bool showSystemOutput = false;
-    private string displayCode = @"Console.WriteLine(""Hello from C# WebAssembly!"");
-Console.WriteLine(""This code runs real C# compilation and execution in your browser."");
-Console.WriteLine();
-
-// Basic variables
-string language = ""C#"";
-int year = 2025;
-bool isAwesome = true;
-char grade = 'A';
-
-Console.WriteLine($""Language: {language}"");
-Console.WriteLine($""Year: {year}"");
-Console.WriteLine($""Is awesome: {isAwesome}"");
-Console.WriteLine($""Grade: {grade}"");
-Console.WriteLine();
-
-// Character and string examples
-Console.Write('H');
-Console.Write('e');
-Console.Write('l');
-Console.Write('l');
-Console.Write('o');
-Console.Write(' ');
-Console.WriteLine(""World!"");
-Console.WriteLine();
-
-// Simple loop
-Console.WriteLine(""Counting to 5:"");
-for (int i = 1; i <= 5; i++)
-{
-    Console.WriteLine($""Count: {i}"");
-}
-
-Console.WriteLine();
-Console.WriteLine(""C# compilation successful!"");";
+    private string displayCode = "";
 
     private async Task CompileAndRun()
     {
@@ -615,6 +601,16 @@ public class Program
         
         // Finally, update the display code for the new mode
         UpdateDisplayCode();
+    }
+
+    private void LoadSampleCode()
+    {
+        // Replace the current source code with the sample code
+        sourceCode = sampleCode;
+        
+        // Update the display based on current toggle state
+        UpdateDisplayCode();
+        StateHasChanged();
     }
 
     private Task<CompilationResult> CompileCSharpCode(string code)
