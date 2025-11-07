@@ -88,20 +88,30 @@
     };
     
     window.clearInteractiveOutput = () => {
-        const outputElement = document.getElementById('output');
-        if (outputElement) {
-            const interactiveElements = outputElement.querySelectorAll('.interactive-output');
-            interactiveElements.forEach(el => el.remove());
+        try {
+            const outputElement = document.getElementById('output');
+            if (outputElement) {
+                const interactiveElements = outputElement.querySelectorAll('.interactive-output');
+                interactiveElements.forEach(el => el.remove());
+            }
+        } catch (e) {
+            // Silently ignore errors during cleanup
+            console.log('clearInteractiveOutput error:', e);
         }
     };
     
     window.clearAllOutput = () => {
-        const outputElement = document.getElementById('output');
-        if (outputElement) {
-            // Remove ALL children, not just interactive ones
-            while (outputElement.firstChild) {
-                outputElement.removeChild(outputElement.firstChild);
+        try {
+            const outputElement = document.getElementById('output');
+            if (outputElement && outputElement.firstChild) {
+                // Remove ALL children, not just interactive ones
+                while (outputElement.firstChild) {
+                    outputElement.removeChild(outputElement.firstChild);
+                }
             }
+        } catch (e) {
+            // Silently ignore errors during cleanup
+            console.log('clearAllOutput error:', e);
         }
     };
 </script>
@@ -673,6 +683,7 @@ public class Program
     private bool showFullCode = false;
     private bool showSystemOutput = false;
     private string displayCode = "";
+    private bool isExecutingInteractive = false;
     
     private const string WelcomeMessage = @"<span class='info'>Real Blazor WebAssembly C# Compiler Ready!</span><br/>
 <span class='info'>This environment provides:</span><br/>
@@ -689,18 +700,13 @@ public class Program
     {
         isCompiling = true;
         
-        // When system output is hidden, clear ALL output before we start
+        // Clear output variables - let Blazor handle the DOM updates
         if (!showSystemOutput)
         {
             userOutput = "";
             errorOutput = "";
-            output = "";  // Also clear the main output variable
-            systemOutput = "";  // Also clear the system output variable
-            StateHasChanged();
-            await Task.Delay(50); // Give Blazor time to actually clear the DOM
-            
-            // Immediately clear the DOM to remove any rendered empty content
-            await JSRuntime.InvokeVoidAsync("clearAllOutput");
+            output = "";
+            systemOutput = "";
         }
         
         AddOutput("Compiling C# code with real Roslyn compiler...", "info");
@@ -714,9 +720,6 @@ public class Program
 
         try
         {
-            // Clear ALL output from previous run (not just interactive elements)
-            await JSRuntime.InvokeVoidAsync("clearAllOutput");
-            
             // Ensure we have the current full source code
             if (!showFullCode)
             {
@@ -738,8 +741,13 @@ public class Program
                 
                 // Now that interactive execution is done, add completion message
                 AddOutput(".NET WebAssembly execution completed successfully!", "success");
-                StateHasChanged();
-                await ScrollToBottom();
+                
+                // Only update UI if system output is visible
+                if (showSystemOutput)
+                {
+                    StateHasChanged();
+                    await ScrollToBottom();
+                }
             }
             else
             {
@@ -811,7 +819,12 @@ public class Program
         else
         {
             // When system output is hidden, show only errors (not program output - that's displayed via JavaScript)
-            return errorOutput; // Return empty string, not HTML comment - the @if in the markup will prevent rendering
+            // Don't render anything via Blazor while interactive execution is displaying output via JavaScript
+            if (isExecutingInteractive)
+            {
+                return "";
+            }
+            return errorOutput;
         }
     }
 
@@ -1088,153 +1101,7 @@ public class Program
             }
             
             // Inject a Console replacement class that captures output
-            var consoleReplacementCode = @"
-public static class Console
-{
-    private static System.Text.StringBuilder _output = new System.Text.StringBuilder();
-    private static System.Collections.Generic.Queue<string> _inputQueue = new System.Collections.Generic.Queue<string>();
-    
-    public static void WriteLine()
-    {
-        // Only append newline if there's already content, to avoid leading blank lines
-        if (_output.Length > 0)
-        {
-            _output.Append("\n");
-        }
-    }
-    
-    public static void WriteLine(string value)
-    {
-        _output.Append(value ?? "");
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(char value)
-    {
-        _output.Append(value.ToString());
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(object value)
-    {
-        _output.Append(value?.ToString() ?? "");
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(int value)
-    {
-        _output.Append(value.ToString());
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(long value)
-    {
-        _output.Append(value.ToString());
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(float value)
-    {
-        _output.Append(value.ToString());
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(double value)
-    {
-        _output.Append(value.ToString());
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(decimal value)
-    {
-        _output.Append(value.ToString());
-        _output.Append("\n");
-    }
-    
-    public static void WriteLine(bool value)
-    {
-        _output.Append(value.ToString());
-        _output.Append("\n");
-    }
-    
-    public static void Write(string value)
-    {
-        _output.Append(value ?? """");
-    }
-    
-    public static void Write(char value)
-    {
-        _output.Append(value.ToString());
-    }
-    
-    public static void Write(object value)
-    {
-        _output.Append(value?.ToString() ?? """");
-    }
-    
-    public static void Write(int value)
-    {
-        _output.Append(value.ToString());
-    }
-    
-    public static void Write(long value)
-    {
-        _output.Append(value.ToString());
-    }
-    
-    public static void Write(float value)
-    {
-        _output.Append(value.ToString());
-    }
-    
-    public static void Write(double value)
-    {
-        _output.Append(value.ToString());
-    }
-    
-    public static void Write(decimal value)
-    {
-        _output.Append(value.ToString());
-    }
-    
-    public static void Write(bool value)
-    {
-        _output.Append(value.ToString());
-    }
-    
-    public static string ReadLine()
-    {
-        if (_inputQueue.Count > 0)
-        {
-            var input = _inputQueue.Dequeue();
-            // Append the input followed by a newline, just like real Console.ReadLine()
-            // This puts the input on the same line as any preceding Write() prompt
-            _output.Append(input);
-            _output.Append("\n");
-            return input;
-        }
-        
-        // Throw exception to signal we need input
-        throw new System.InvalidOperationException(""INPUT_REQUIRED"");
-    }
-    
-    internal static string GetCapturedOutput()
-    {
-        return _output.ToString();
-    }
-    
-    internal static void ClearOutput()
-    {
-        _output.Clear();
-        _inputQueue.Clear();
-    }
-    
-    internal static void ProvideInput(string input)
-    {
-        _inputQueue.Enqueue(input ?? """");
-    }
-}
-";
+            var consoleReplacementCode = ConsoleCodeProvider.GetConsoleReplacementCode();
             
             // Combine: using statements + console replacement + user code
             var combinedCode = string.Join("\n", usingStatements) + "\n" + consoleReplacementCode + "\n" + string.Join("\n", userCodeLines);
@@ -1505,6 +1372,9 @@ public static class Console
         
         try
         {
+            // Set flag to prevent Blazor from rendering while JavaScript manages the DOM
+            isExecutingInteractive = true;
+            
             var allInputs = new List<string>();
             
             while (true)
@@ -1524,7 +1394,7 @@ public static class Console
                 }
                 
                 var parameters = mainMethod.GetParameters();
-                object?[] args = parameters.Length == 0 ? null : new object[] { new string[0] };
+                object?[]? args = parameters.Length == 0 ? null : new object[] { new string[0] };
                 
                 try
                 {
@@ -1541,6 +1411,10 @@ public static class Console
                     
                     // Display the final output
                     await DisplayOutput(finalOutput);
+                    
+                    // Clear the flag - interactive execution is done
+                    isExecutingInteractive = false;
+                    
                     return "";
                 }
                 catch (TargetInvocationException ex) when (ex.InnerException?.Message == "INPUT_REQUIRED")
@@ -1562,16 +1436,16 @@ public static class Console
                     // Add to inputs collection
                     allInputs.Add(userInput);
                     
-                    // Clear output before restarting - this removes any leftover DOM elements
-                    await JSRuntime.InvokeVoidAsync("clearAllOutput");
-                    
-                    // Loop to restart execution
+                    // Loop to restart execution - DisplayOutput will clear on next iteration
                     continue;
                 }
             }
         }
         catch (Exception ex)
         {
+            // Clear the flag on error too
+            isExecutingInteractive = false;
+            
             var innerEx = ex.InnerException ?? ex;
             AddErrorOutput($"Execution error: {innerEx.GetType().Name}: {innerEx.Message}", "error");
             return $"Execution error: {innerEx.Message}";
@@ -1582,62 +1456,91 @@ public static class Console
     {
         try
         {
-            // Clear ALL previous output (including br tags)
-            await JSRuntime.InvokeVoidAsync("clearAllOutput");
-            
-            if (!string.IsNullOrEmpty(outputText))
+            if (showSystemOutput)
             {
-                // Aggressively remove ALL leading blank lines
-                var lines = outputText.Split('\n');
-                int firstNonEmptyLine = 0;
-                for (int i = 0; i < lines.Length; i++)
+                // When system output is enabled, use Blazor rendering instead of JavaScript
+                // Add the program output to the output variable
+                if (!string.IsNullOrEmpty(outputText))
                 {
-                    if (!string.IsNullOrWhiteSpace(lines[i]))
+                    var lines = outputText.Split('\n');
+                    int firstNonEmptyLine = 0;
+                    for (int i = 0; i < lines.Length; i++)
                     {
-                        firstNonEmptyLine = i;
-                        break;
+                        if (!string.IsNullOrWhiteSpace(lines[i]))
+                        {
+                            firstNonEmptyLine = i;
+                            break;
+                        }
                     }
+                    var trimmedOutput = string.Join("\n", lines.Skip(firstNonEmptyLine));
+                    
+                    // Add as pre-formatted text to preserve whitespace, escape HTML
+                    var escaped = trimmedOutput.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
+                    output += $"<pre style='color: #f0f6fc; margin: 0; padding: 0; white-space: pre-wrap; word-wrap: break-word;'>{escaped}</pre>";
+                }
+                StateHasChanged();
+                await ScrollToBottom();
+            }
+            else
+            {
+                // When system output is hidden, use JavaScript to manage DOM
+                // Clear the Blazor output variable FIRST
+                output = "";
+                userOutput = "";
+                
+                // Then clear and update the DOM via JavaScript
+                try
+                {
+                    await JSRuntime.InvokeVoidAsync("clearAllOutput");
+                }
+                catch
+                {
+                    // Ignore errors during cleanup
                 }
                 
-                // Reconstruct output starting from first non-empty line
-                var trimmedOutput = string.Join("\n", lines.Skip(firstNonEmptyLine));
-                
-                await JSRuntime.InvokeVoidAsync("eval", 
-                    $@"(function() {{
-                        const outputElement = document.getElementById('output');
-                        if (!outputElement) return;
-                        
-                        const output = {System.Text.Json.JsonSerializer.Serialize(trimmedOutput)};
-                        
-                        // Render as pre-formatted text to preserve exact whitespace
-                        const preElement = document.createElement('pre');
-                        preElement.textContent = output;
-                        preElement.style.color = '#f0f6fc';
-                        preElement.style.margin = '0';
-                        preElement.style.padding = '0';
-                        preElement.style.fontFamily = 'inherit';
-                        preElement.style.fontSize = 'inherit';
-                        preElement.style.lineHeight = 'inherit';
-                        preElement.style.whiteSpace = 'pre-wrap';
-                        preElement.style.wordWrap = 'break-word';
-                        preElement.className = 'interactive-output';
-                        outputElement.appendChild(preElement);
-                        
-                        window.scrollToBottom('output');
-                    }})()");
+                if (!string.IsNullOrEmpty(outputText))
+                {
+                    var lines = outputText.Split('\n');
+                    int firstNonEmptyLine = 0;
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        if (!string.IsNullOrWhiteSpace(lines[i]))
+                        {
+                            firstNonEmptyLine = i;
+                            break;
+                        }
+                    }
+                    var trimmedOutput = string.Join("\n", lines.Skip(firstNonEmptyLine));
+                    
+                    await JSRuntime.InvokeVoidAsync("eval", 
+                        $@"(function() {{
+                            const outputElement = document.getElementById('output');
+                            if (!outputElement) return;
+                            
+                            const output = {System.Text.Json.JsonSerializer.Serialize(trimmedOutput)};
+                            
+                            const preElement = document.createElement('pre');
+                            preElement.textContent = output;
+                            preElement.style.color = '#f0f6fc';
+                            preElement.style.margin = '0';
+                            preElement.style.padding = '0';
+                            preElement.style.fontFamily = 'inherit';
+                            preElement.style.fontSize = 'inherit';
+                            preElement.style.lineHeight = 'inherit';
+                            preElement.style.whiteSpace = 'pre-wrap';
+                            preElement.style.wordWrap = 'break-word';
+                            preElement.className = 'interactive-output';
+                            outputElement.appendChild(preElement);
+                            
+                            window.scrollToBottom('output');
+                        }})()");
+                }
             }
         }
         catch (Exception ex)
         {
-            // Ignore JS errors during output display
             Console.WriteLine($"Display error: {ex.Message}");
         }
-    }
-
-    private async Task<string> ExecuteAssemblyInteractively(Assembly assembly, MethodInfo mainMethod)
-    {
-        // This method is no longer used - replaced by ExecuteWithInteractiveInput
-        return "Interactive execution completed";
     }
 
     private class CompilationResult
