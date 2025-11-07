@@ -683,7 +683,6 @@ public class Program
     private bool showFullCode = false;
     private bool showSystemOutput = false;
     private string displayCode = "";
-    private bool isExecutingInteractive = false;
     
     private const string WelcomeMessage = @"<span class='info'>Real Blazor WebAssembly C# Compiler Ready!</span><br/>
 <span class='info'>This environment provides:</span><br/>
@@ -752,23 +751,40 @@ public class Program
             else
             {
                 AddErrorOutput("Compilation failed with Roslyn:", "error");
-                StateHasChanged();
-                await ScrollToBottom();
                 
                 foreach (var error in result.Errors)
                 {
                     var lineNumber = error.Location.GetLineSpan().StartLinePosition.Line + 1;
                     AddErrorOutput($"Line {lineNumber}: {error.GetMessage()}", "error");
                 }
-                StateHasChanged();
-                await ScrollToBottom();
+                
+                // Display errors using the same strategy as regular output
+                if (showSystemOutput)
+                {
+                    // Use Blazor rendering
+                    StateHasChanged();
+                    await ScrollToBottom();
+                }
+                else
+                {
+                    // Use JavaScript rendering to avoid race condition
+                    await DisplayErrorsViaJavaScript();
+                }
             }
         }
         catch (Exception ex)
         {
             AddErrorOutput($"Error: {ex.Message}", "error");
-            StateHasChanged();
-            await ScrollToBottom();
+            
+            if (showSystemOutput)
+            {
+                StateHasChanged();
+                await ScrollToBottom();
+            }
+            else
+            {
+                await DisplayErrorsViaJavaScript();
+            }
         }
         finally
         {
@@ -818,13 +834,9 @@ public class Program
         }
         else
         {
-            // When system output is hidden, show only errors (not program output - that's displayed via JavaScript)
-            // Don't render anything via Blazor while interactive execution is displaying output via JavaScript
-            if (isExecutingInteractive)
-            {
-                return "";
-            }
-            return errorOutput;
+            // When system output is hidden, use JavaScript rendering exclusively
+            // Never return content here to avoid Blazor DOM conflicts
+            return "";
         }
     }
 
@@ -1372,9 +1384,6 @@ public class Program
         
         try
         {
-            // Set flag to prevent Blazor from rendering while JavaScript manages the DOM
-            isExecutingInteractive = true;
-            
             var allInputs = new List<string>();
             
             while (true)
@@ -1412,9 +1421,6 @@ public class Program
                     // Display the final output
                     await DisplayOutput(finalOutput);
                     
-                    // Clear the flag - interactive execution is done
-                    isExecutingInteractive = false;
-                    
                     return "";
                 }
                 catch (TargetInvocationException ex) when (ex.InnerException?.Message == "INPUT_REQUIRED")
@@ -1443,9 +1449,6 @@ public class Program
         }
         catch (Exception ex)
         {
-            // Clear the flag on error too
-            isExecutingInteractive = false;
-            
             var innerEx = ex.InnerException ?? ex;
             AddErrorOutput($"Execution error: {innerEx.GetType().Name}: {innerEx.Message}", "error");
             return $"Execution error: {innerEx.Message}";
@@ -1540,6 +1543,37 @@ public class Program
         catch (Exception ex)
         {
             Console.WriteLine($"Display error: {ex.Message}");
+        }
+    }
+
+    private async Task DisplayErrorsViaJavaScript()
+    {
+        try
+        {
+            // Clear previous output first
+            await JSRuntime.InvokeVoidAsync("clearAllOutput");
+            
+            if (!string.IsNullOrEmpty(errorOutput))
+            {
+                // Display errors via JavaScript to avoid Blazor DOM conflicts
+                await JSRuntime.InvokeVoidAsync("eval", 
+                    $@"(function() {{
+                        const outputElement = document.getElementById('output');
+                        if (!outputElement) return;
+                        
+                        const errorHtml = {System.Text.Json.JsonSerializer.Serialize(errorOutput)};
+                        
+                        const div = document.createElement('div');
+                        div.innerHTML = errorHtml;
+                        outputElement.appendChild(div);
+                        
+                        window.scrollToBottom('output');
+                    }})()");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"DisplayErrorsViaJavaScript error: {ex.Message}");
         }
     }
 
